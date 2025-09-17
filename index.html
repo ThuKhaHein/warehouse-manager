@@ -134,7 +134,20 @@
             padding: 1.5rem;
             border-radius: 0.75rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            border-left: 5px solid var(--primary-color);
+            display: flex;
+            align-items: center;
+        }
+        .stat-card .icon {
+            font-size: 2.5rem;
+            margin-right: 1.5rem;
+            color: var(--primary-color);
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--secondary-color);
+            border-radius: 50%;
         }
     </style>
 </head>
@@ -230,32 +243,50 @@
             <div class="p-4 md:p-6 lg:p-8">
                 <!-- Dashboard View -->
                 <section id="dashboard-view" class="page-view">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         <div class="stat-card">
-                            <h3 class="text-lg font-semibold text-gray-500">Total Silo Capacity</h3>
-                            <p id="total-silo-capacity" class="text-4xl font-bold text-gray-800 mt-2">0 MT</p>
+                            <div class="icon text-blue-600"><i class="fas fa-cubes"></i></div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-500">Total Silo Stock</h3>
+                                <p id="total-silo-stock" class="text-3xl font-bold text-gray-800 mt-1">0 MT</p>
+                                <p id="total-silo-capacity" class="text-sm text-gray-500">/ 0 MT Capacity</p>
+                            </div>
                         </div>
                         <div class="stat-card">
-                            <h3 class="text-lg font-semibold text-gray-500">Total Silo Stock</h3>
-                            <p id="total-silo-stock" class="text-4xl font-bold text-gray-800 mt-2">0 MT</p>
-                        </div>
-                        <div class="stat-card">
-                            <h3 class="text-lg font-semibold text-gray-500">Warehouse Capacity</h3>
-                            <p class="text-4xl font-bold text-gray-800 mt-2">20,000 MT</p>
-                        </div>
-                        <div class="stat-card">
-                            <h3 class="text-lg font-semibold text-gray-500">Warehouse Stock</h3>
-                            <p id="total-warehouse-stock" class="text-4xl font-bold text-gray-800 mt-2">0 MT</p>
+                            <div class="icon text-green-600"><i class="fas fa-industry"></i></div>
+                             <div>
+                                <h3 class="text-lg font-semibold text-gray-500">Total Warehouse Stock</h3>
+                                <p id="total-warehouse-stock" class="text-3xl font-bold text-gray-800 mt-1">0 MT</p>
+                                <p class="text-sm text-gray-500">/ 20,000 MT Capacity</p>
+                            </div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div class="bg-white p-6 rounded-xl shadow-md">
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                        <div class="lg:col-span-3 bg-white p-6 rounded-xl shadow-md">
                             <h3 class="text-xl font-semibold mb-4 text-center">Silo Fill Levels</h3>
-                            <canvas id="silos-chart"></canvas>
+                            <div class="h-80"><canvas id="silos-chart"></canvas></div>
                         </div>
-                        <div class="bg-white p-6 rounded-xl shadow-md">
-                            <h3 class="text-xl font-semibold mb-4 text-center">Warehouse Commodity Distribution</h3>
-                            <canvas id="warehouse-chart"></canvas>
+                        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="text-xl font-semibold mb-4 text-center">Warehouse Distribution</h3>
+                            <div class="h-80"><canvas id="warehouse-chart"></canvas></div>
+                        </div>
+                    </div>
+                     <div class="mt-8 bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-semibold mb-4">Recent Transactions</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="p-3 font-semibold text-sm text-gray-600">Date</th>
+                                        <th class="p-3 font-semibold text-sm text-gray-600">Type</th>
+                                        <th class="p-3 font-semibold text-sm text-gray-600">Item/Location</th>
+                                        <th class="p-3 font-semibold text-sm text-gray-600">Change (MT)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-transactions-table-body">
+                                    <!-- Recent transactions will be here -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </section>
@@ -263,8 +294,8 @@
                 <!-- Warehouse View -->
                 <section id="warehouse-view" class="page-view hidden">
                     <div class="bg-white p-6 rounded-xl shadow-md">
-                        <h3 class="text-2xl font-bold text-gray-800 mb-2">Warehouse Inventory</h3>
-                        <p class="text-gray-600 mb-6">Total Capacity: 20,000 MT</p>
+                        <h3 class="text-2xl font-bold text-gray-800 mb-2">Warehouse Inventory Movements</h3>
+                        <p class="text-gray-600 mb-6">Enter quantities to receive (IN) or deliver (OUT). Current stock is shown below.</p>
                         
                         <div class="mb-6">
                             <div class="flex justify-between items-center mb-2">
@@ -276,26 +307,50 @@
                             </div>
                         </div>
 
-                        <form id="warehouse-form" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                            <div>
-                                <label for="commodity-corn" class="block font-medium text-gray-700">Corn (MT)</label>
-                                <input type="number" id="commodity-corn" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" min="0" value="0">
-                            </div>
-                             <div>
-                                <label for="commodity-urea" class="block font-medium text-gray-700">Urea (MT)</label>
-                                <input type="number" id="commodity-urea" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" min="0" value="0">
-                            </div>
-                             <div>
-                                <label for="commodity-sbm" class="block font-medium text-gray-700">SBM (MT)</label>
-                                <input type="number" id="commodity-sbm" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" min="0" value="0">
-                            </div>
-                             <div>
-                                <label for="commodity-gc" class="block font-medium text-gray-700">GC (MT)</label>
-                                <input type="number" id="commodity-gc" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" min="0" value="0">
-                            </div>
-                            <div class="md:col-span-2 flex justify-end">
+                        <form id="warehouse-form" class="space-y-6">
+                            <table class="w-full text-left">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-4 font-semibold text-sm text-gray-600 rounded-l-lg">Commodity</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">Current Stock (MT)</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">Receive (IN)</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600 rounded-r-lg">Deliver (OUT)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Corn -->
+                                    <tr class="border-b">
+                                        <td class="p-4 font-medium text-gray-800">Corn</td>
+                                        <td class="p-4 text-gray-600"><span id="current-stock-corn">0</span></td>
+                                        <td class="p-2"><input type="number" id="commodity-corn-receive" class="w-full border-gray-300 rounded-md shadow-sm" min="0" placeholder="0"></td>
+                                        <td class="p-2"><input type="number" id="commodity-corn-deliver" class="w-full border-gray-300 rounded-md shadow-sm" min="0" placeholder="0"></td>
+                                    </tr>
+                                    <!-- Urea -->
+                                    <tr class="border-b">
+                                        <td class="p-4 font-medium text-gray-800">Urea</td>
+                                        <td class="p-4 text-gray-600"><span id="current-stock-urea">0</span></td>
+                                        <td class="p-2"><input type="number" id="commodity-urea-receive" class="w-full border-gray-300 rounded-md shadow-sm" min="0" placeholder="0"></td>
+                                        <td class="p-2"><input type="number" id="commodity-urea-deliver" class="w-full border-gray-300 rounded-md shadow-sm" min="0" placeholder="0"></td>
+                                    </tr>
+                                    <!-- SBM -->
+                                    <tr class="border-b">
+                                        <td class="p-4 font-medium text-gray-800">SBM</td>
+                                        <td class="p-4 text-gray-600"><span id="current-stock-sbm">0</span></td>
+                                        <td class="p-2"><input type="number" id="commodity-sbm-receive" class="w-full border-gray-300 rounded-md shadow-sm" min="0" placeholder="0"></td>
+                                        <td class="p-2"><input type="number" id="commodity-sbm-deliver" class="w-full border-gray-300 rounded-md shadow-sm" min="0" placeholder="0"></td>
+                                    </tr>
+                                    <!-- GC -->
+                                    <tr>
+                                        <td class="p-4 font-medium text-gray-800">GC</td>
+                                        <td class="p-4 text-gray-600"><span id="current-stock-gc">0</span></td>
+                                        <td class="p-2"><input type="number" id="commodity-gc-receive" class="w-full border-gray-300 rounded-md shadow-sm" min="0" placeholder="0"></td>
+                                        <td class="p-2"><input type="number" id="commodity-gc-deliver" class="w-full border-gray-300 rounded-md shadow-sm" min="0" placeholder="0"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div class="flex justify-end pt-4">
                                 <button type="submit" class="btn-primary font-bold py-2 px-6 rounded-lg">
-                                    <i class="fas fa-save mr-2"></i>Update Stock
+                                    <i class="fas fa-check mr-2"></i>Process Movements
                                 </button>
                             </div>
                         </form>
@@ -388,14 +443,28 @@
     <!-- Silo Edit Modal -->
     <div id="silo-modal" class="modal-overlay">
         <div class="modal-content">
-            <h2 id="modal-title" class="text-2xl font-bold mb-6 text-gray-800">Edit Silo</h2>
+            <h2 id="modal-title" class="text-2xl font-bold mb-4 text-gray-800">Silo Movement</h2>
             <form id="silo-form">
                 <input type="hidden" id="silo-id">
-                <div class="mb-4">
-                    <label for="silo-current-stock" class="block text-gray-700 font-medium mb-2">Current Stock (MT)</label>
-                    <input type="number" id="silo-current-stock" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required min="0">
+                <input type="hidden" id="silo-capacity-hidden">
+                
+                <div class="mb-4 bg-gray-100 p-3 rounded-lg">
+                    <span class="font-medium text-gray-600">Current Stock:</span>
+                    <span id="modal-silo-current-stock" class="font-bold text-lg text-gray-800">0</span> MT
                 </div>
-                <div class="flex justify-end space-x-4">
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="mb-4">
+                        <label for="silo-receive-stock" class="block text-gray-700 font-medium mb-2">Receive (IN)</label>
+                        <input type="number" id="silo-receive-stock" class="w-full px-4 py-2 border rounded-lg" required min="0" placeholder="0">
+                    </div>
+                    <div class="mb-4">
+                        <label for="silo-deliver-stock" class="block text-gray-700 font-medium mb-2">Deliver (OUT)</label>
+                        <input type="number" id="silo-deliver-stock" class="w-full px-4 py-2 border rounded-lg" required min="0" placeholder="0">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-4 mt-4">
                     <button type="button" id="modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg">Cancel</button>
                     <button type="submit" class="btn-primary font-bold py-2 px-6 rounded-lg">Save</button>
                 </div>
@@ -441,7 +510,8 @@
             addDoc,
             serverTimestamp,
             orderBy,
-            deleteDoc
+            deleteDoc,
+            limit
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         
         // --- APP INITIALIZATION ---
@@ -590,10 +660,12 @@
 
         // --- TRANSACTION LOGGING ---
         async function logTransaction(type, item, change, user) {
+            if (change === 0) return;
             try {
+                const transactionType = `${type} ${change > 0 ? 'Receive' : 'Deliver'}`;
                 await addDoc(collection(db, 'transactions'), {
                     timestamp: serverTimestamp(),
-                    type,
+                    type: transactionType,
                     item,
                     change,
                     user
@@ -620,10 +692,10 @@
         }
 
         function updateWarehouseUI(data) {
-            document.getElementById('commodity-corn').value = data.corn;
-            document.getElementById('commodity-urea').value = data.urea;
-            document.getElementById('commodity-sbm').value = data.sbm;
-            document.getElementById('commodity-gc').value = data.gc;
+            document.getElementById('current-stock-corn').textContent = (data.corn || 0).toLocaleString();
+            document.getElementById('current-stock-urea').textContent = (data.urea || 0).toLocaleString();
+            document.getElementById('current-stock-sbm').textContent = (data.sbm || 0).toLocaleString();
+            document.getElementById('current-stock-gc').textContent = (data.gc || 0).toLocaleString();
             
             const totalStock = (data.corn || 0) + (data.urea || 0) + (data.sbm || 0) + (data.gc || 0);
             const fillPercentage = (totalStock / WAREHOUSE_CAPACITY) * 100;
@@ -637,36 +709,50 @@
         async function handleWarehouseUpdate(e) {
             e.preventDefault();
             const user = auth.currentUser.email;
+            const form = e.target;
 
-            const newStock = {
-                corn: parseInt(document.getElementById('commodity-corn').value) || 0,
-                urea: parseInt(document.getElementById('commodity-urea').value) || 0,
-                sbm: parseInt(document.getElementById('commodity-sbm').value) || 0,
-                gc: parseInt(document.getElementById('commodity-gc').value) || 0
+            const movements = {
+                corn: (parseInt(form['commodity-corn-receive'].value) || 0) - (parseInt(form['commodity-corn-deliver'].value) || 0),
+                urea: (parseInt(form['commodity-urea-receive'].value) || 0) - (parseInt(form['commodity-urea-deliver'].value) || 0),
+                sbm: (parseInt(form['commodity-sbm-receive'].value) || 0) - (parseInt(form['commodity-sbm-deliver'].value) || 0),
+                gc: (parseInt(form['commodity-gc-receive'].value) || 0) - (parseInt(form['commodity-gc-deliver'].value) || 0)
             };
-
-            const totalStock = newStock.corn + newStock.urea + newStock.sbm + newStock.gc;
-            if (totalStock > WAREHOUSE_CAPACITY) {
-                showToast('Total stock cannot exceed warehouse capacity!', 'error');
-                return;
-            }
 
             const warehouseRef = doc(db, 'warehouse', 'main');
             try {
                 const docSnap = await getDoc(warehouseRef);
-                const oldStock = docSnap.exists() ? docSnap.data() : { corn: 0, urea: 0, sbm: 0, gc: 0 };
+                const currentStock = docSnap.exists() ? docSnap.data() : { corn: 0, urea: 0, sbm: 0, gc: 0 };
                 
+                const newStock = {
+                    corn: (currentStock.corn || 0) + movements.corn,
+                    urea: (currentStock.urea || 0) + movements.urea,
+                    sbm: (currentStock.sbm || 0) + movements.sbm,
+                    gc: (currentStock.gc || 0) + movements.gc,
+                };
+
+                // Validation
+                for(const commodity in newStock) {
+                    if (newStock[commodity] < 0) {
+                        showToast(`Not enough ${commodity.toUpperCase()} in stock to deliver.`, 'error');
+                        return;
+                    }
+                }
+                const newTotalStock = Object.values(newStock).reduce((a, b) => a + b, 0);
+                if (newTotalStock > WAREHOUSE_CAPACITY) {
+                    showToast('Total stock cannot exceed warehouse capacity!', 'error');
+                    return;
+                }
+
                 await setDoc(warehouseRef, newStock);
 
-                // Log changes
-                for (const commodity in newStock) {
-                    const change = newStock[commodity] - (oldStock[commodity] || 0);
-                    if (change !== 0) {
-                        await logTransaction('Warehouse', commodity.toUpperCase(), change, user);
+                for (const commodity in movements) {
+                    if (movements[commodity] !== 0) {
+                        await logTransaction('Warehouse', commodity.toUpperCase(), movements[commodity], user);
                     }
                 }
                 
-                showToast('Warehouse stock updated successfully!', 'success');
+                showToast('Warehouse movements processed!', 'success');
+                form.reset();
             } catch (error) {
                 showToast(`Error: ${error.message}`, 'error');
             }
@@ -677,20 +763,15 @@
             if (!confirm('Are you sure you want to initialize/reset all 13 silos? This will set their stock to 0.')) {
                 return;
             }
-
             try {
                 const batch = writeBatch(db);
                 siloDefinitions.forEach(silo => {
                     const siloRef = doc(db, 'silos', silo.id);
-                    batch.set(siloRef, {
-                        ...silo,
-                        currentStock: 0,
-                        commodity: 'Wheat'
-                    });
+                    batch.set(siloRef, { ...silo, currentStock: 0, commodity: 'Wheat' });
                 });
                 await batch.commit();
                 showToast('Silos initialized successfully!', 'success');
-                await logTransaction('System', 'All Silos', 'Initialized to 0', auth.currentUser.email);
+                await logTransaction('System', 'All Silos', 0, auth.currentUser.email);
             } catch (error) {
                 showToast(`Error initializing silos: ${error.message}`, 'error');
             }
@@ -737,7 +818,7 @@
                             </div>
                         </td>
                         <td class="p-4 text-center">
-                            <button class="edit-btn text-blue-600 hover:text-blue-800" data-id="${silo.firestoreId}" data-stock="${silo.currentStock}" data-capacity="${silo.capacity}"><i class="fas fa-edit"></i></button>
+                            <button class="edit-btn text-blue-600 hover:text-blue-800" data-id="${silo.firestoreId}" data-stock="${silo.currentStock}" data-capacity="${silo.capacity}"><i class="fas fa-exchange-alt"></i></button>
                         </td>
                     </tr>
                 `;
@@ -751,10 +832,10 @@
         
         function openEditModal(id, currentStock, capacity) {
             document.getElementById('silo-id').value = id;
-            const stockInput = document.getElementById('silo-current-stock');
-            stockInput.value = currentStock;
-            stockInput.max = capacity;
-            document.getElementById('modal-title').textContent = `Edit Stock for ${id}`;
+            document.getElementById('silo-capacity-hidden').value = capacity;
+            document.getElementById('modal-silo-current-stock').textContent = parseInt(currentStock).toLocaleString();
+            document.getElementById('silo-form').reset();
+            document.getElementById('modal-title').textContent = `Movement for ${id}`;
             document.getElementById('silo-modal').classList.add('show');
         }
         
@@ -765,28 +846,37 @@
         async function handleSiloUpdate(e) {
             e.preventDefault();
             const id = document.getElementById('silo-id').value;
-            const stockInput = document.getElementById('silo-current-stock');
-            const newStock = parseInt(stockInput.value);
-            const capacity = parseInt(stockInput.max);
-            
-            if (newStock < 0 || newStock > capacity) {
-                showToast(`Stock must be between 0 and ${capacity}.`, 'error');
-                return;
-            }
+            const capacity = parseInt(document.getElementById('silo-capacity-hidden').value);
+            const receiveAmount = parseInt(document.getElementById('silo-receive-stock').value) || 0;
+            const deliverAmount = parseInt(document.getElementById('silo-deliver-stock').value) || 0;
             
             const siloRef = doc(db, 'silos', id);
             try {
                 const docSnap = await getDoc(siloRef);
-                const oldStock = docSnap.exists() ? docSnap.data().currentStock : 0;
+                const currentStock = docSnap.exists() ? docSnap.data().currentStock : 0;
+                
+                if (deliverAmount > currentStock) {
+                    showToast('Cannot deliver more than current stock.', 'error');
+                    return;
+                }
+                
+                const newStock = currentStock + receiveAmount - deliverAmount;
+
+                if (newStock > capacity) {
+                    showToast('New stock level exceeds silo capacity.', 'error');
+                    return;
+                }
                 
                 await setDoc(siloRef, { currentStock: newStock }, { merge: true });
                 
-                const change = newStock - oldStock;
-                if (change !== 0) {
-                    await logTransaction('Silo', id, change, auth.currentUser.email);
+                if (receiveAmount > 0) {
+                    await logTransaction('Silo', id, receiveAmount, auth.currentUser.email);
+                }
+                if (deliverAmount > 0) {
+                    await logTransaction('Silo', id, -deliverAmount, auth.currentUser.email);
                 }
 
-                showToast('Silo stock updated successfully!', 'success');
+                showToast('Silo movement processed successfully!', 'success');
                 closeModal();
             } catch (error) {
                 showToast(`Error updating silo: ${error.message}`, 'error');
@@ -796,24 +886,35 @@
         function updateDashboardStats(silos) {
              const totalCapacity = silos.reduce((acc, silo) => acc + silo.capacity, 0);
              const totalStock = silos.reduce((acc, silo) => acc + silo.currentStock, 0);
-             document.getElementById('total-silo-capacity').textContent = `${totalCapacity.toLocaleString()} MT`;
+             document.getElementById('total-silo-capacity').textContent = `/ ${totalCapacity.toLocaleString()} MT Capacity`;
              document.getElementById('total-silo-stock').textContent = `${totalStock.toLocaleString()} MT`;
         }
 
         // --- TRANSACTIONS LOGIC ---
         function listenToTransactionsData() {
             const q = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'));
+            const qRecent = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'), limit(5));
+
             onSnapshot(q, (querySnapshot) => {
                 allTransactions = [];
                 querySnapshot.forEach((doc) => {
                     allTransactions.push({ id: doc.id, ...doc.data() });
                 });
-                renderTransactions();
+                renderTransactions(); // For the main transaction page
+            });
+
+            onSnapshot(qRecent, (querySnapshot) => {
+                const recentTransactions = [];
+                 querySnapshot.forEach((doc) => {
+                    recentTransactions.push({ id: doc.id, ...doc.data() });
+                });
+                renderRecentTransactions(recentTransactions); // For the dashboard
             });
         }
 
         function renderTransactions(searchTerm = '') {
             const tableBody = document.getElementById('transactions-table-body');
+            // ... (rest of the function remains the same)
             tableBody.innerHTML = '';
             
             const filteredTransactions = allTransactions.filter(t => {
@@ -862,6 +963,31 @@
             });
         }
 
+        function renderRecentTransactions(transactions) {
+            const tableBody = document.getElementById('recent-transactions-table-body');
+            tableBody.innerHTML = '';
+             if (transactions.length === 0) {
+                 tableBody.innerHTML = `<tr><td colspan="4" class="text-center p-8 text-gray-500">No recent transactions.</td></tr>`;
+                 return;
+            }
+            transactions.forEach(t => {
+                const date = t.timestamp ? t.timestamp.toDate().toLocaleDateString() : 'N/A';
+                const change = t.change;
+                const changeClass = typeof change === 'number' ? (change > 0 ? 'text-green-600' : 'text-red-600') : 'text-gray-600';
+                const changeText = typeof change === 'number' ? `${change > 0 ? '+' : ''}${change.toLocaleString()}` : change;
+                const row = `
+                    <tr class="border-b">
+                        <td class="p-3 text-gray-600">${date}</td>
+                        <td class="p-3 text-gray-800 font-medium">${t.type}</td>
+                        <td class="p-3 text-gray-600">${t.item}</td>
+                        <td class="p-3 font-semibold ${changeClass}">${changeText}</td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+        }
+
+
         // --- CHARTS ---
         function updateWarehouseChart(data) {
             const ctx = document.getElementById('warehouse-chart').getContext('2d');
@@ -886,7 +1012,7 @@
                 warehouseChartInstance = new Chart(ctx, {
                     type: 'doughnut',
                     data: chartData,
-                    options: { responsive: true, maintainAspectRatio: false }
+                    options: { responsive: true, maintainAspectRatio: true }
                 });
             }
         }
@@ -915,7 +1041,7 @@
                     data: chartData,
                     options: {
                         responsive: true,
-                        maintainAspectRatio: false,
+                        maintainAspectRatio: true,
                         scales: {
                             x: { stacked: true },
                             y: { stacked: true, beginAtZero: true }
