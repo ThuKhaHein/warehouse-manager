@@ -203,6 +203,10 @@
                     <i class="fas fa-cubes w-6 text-center"></i>
                     <span class="ml-4">Silos</span>
                 </a>
+                <a href="#transactions" class="nav-link flex items-center p-3 my-1 rounded-lg text-gray-700 hover:bg-blue-50 font-medium">
+                    <i class="fas fa-history w-6 text-center"></i>
+                    <span class="ml-4">Transactions</span>
+                </a>
             </nav>
             <div class="absolute bottom-4 left-4 right-4">
                 <div id="user-info" class="text-sm text-gray-600 mb-2 truncate"></div>
@@ -338,6 +342,45 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Transactions View -->
+                <section id="transactions-view" class="page-view hidden">
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                            <div>
+                                <h3 class="text-2xl font-bold text-gray-800">Transaction History</h3>
+                                <p class="text-gray-600">A log of all inventory movements.</p>
+                            </div>
+                            <div class="flex space-x-2 mt-4 md:mt-0">
+                                <input type="text" id="transaction-search" placeholder="Search records..." class="w-full md:w-auto px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <button id="export-transactions-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors">
+                                    <i class="fas fa-file-excel mr-2"></i>Excel
+                                </button>
+                                <button id="export-transactions-pdf-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors">
+                                    <i class="fas fa-file-pdf mr-2"></i>PDF
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table id="transactions-table" class="w-full text-left">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-4 font-semibold text-sm text-gray-600 rounded-l-lg">Date</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">Type</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">Item/Location</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">Change (MT)</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">User</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600 rounded-r-lg text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactions-table-body">
+                                    <!-- Transaction rows will be inserted here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
@@ -394,7 +437,11 @@
             collection, 
             query, 
             writeBatch,
-            getDocs
+            getDocs,
+            addDoc,
+            serverTimestamp,
+            orderBy,
+            deleteDoc
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         
         // --- APP INITIALIZATION ---
@@ -405,6 +452,7 @@
         // --- GLOBAL STATE & CONSTANTS ---
         let silosChartInstance = null;
         let warehouseChartInstance = null;
+        let allTransactions = [];
         const WAREHOUSE_CAPACITY = 20000;
         const siloDefinitions = [
             // 6 silos of 3,200 MT
@@ -489,6 +537,7 @@
             setupNavigation();
             listenToWarehouseData();
             listenToSilosData();
+            listenToTransactionsData();
         }
         
         // --- EVENT LISTENERS ---
@@ -503,6 +552,9 @@
             document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
             document.getElementById('export-excel-btn').addEventListener('click', exportToExcel);
             document.getElementById('export-pdf-btn').addEventListener('click', exportToPDF);
+            document.getElementById('export-transactions-excel-btn').addEventListener('click', exportTransactionsToExcel);
+            document.getElementById('export-transactions-pdf-btn').addEventListener('click', exportTransactionsToPDF);
+            document.getElementById('transaction-search').addEventListener('input', (e) => renderTransactions(e.target.value));
         }
 
         // --- NAVIGATION ---
@@ -535,6 +587,22 @@
                 });
             });
         }
+
+        // --- TRANSACTION LOGGING ---
+        async function logTransaction(type, item, change, user) {
+            try {
+                await addDoc(collection(db, 'transactions'), {
+                    timestamp: serverTimestamp(),
+                    type,
+                    item,
+                    change,
+                    user
+                });
+            } catch (error) {
+                console.error("Error logging transaction: ", error);
+                showToast('Failed to log transaction.', 'error');
+            }
+        }
         
         // --- WAREHOUSE LOGIC ---
         function listenToWarehouseData() {
@@ -557,7 +625,7 @@
             document.getElementById('commodity-sbm').value = data.sbm;
             document.getElementById('commodity-gc').value = data.gc;
             
-            const totalStock = data.corn + data.urea + data.sbm + data.gc;
+            const totalStock = (data.corn || 0) + (data.urea || 0) + (data.sbm || 0) + (data.gc || 0);
             const fillPercentage = (totalStock / WAREHOUSE_CAPACITY) * 100;
             
             document.getElementById('total-warehouse-stock').textContent = `${totalStock.toLocaleString()} MT`;
@@ -568,19 +636,36 @@
 
         async function handleWarehouseUpdate(e) {
             e.preventDefault();
-            const corn = parseInt(document.getElementById('commodity-corn').value) || 0;
-            const urea = parseInt(document.getElementById('commodity-urea').value) || 0;
-            const sbm = parseInt(document.getElementById('commodity-sbm').value) || 0;
-            const gc = parseInt(document.getElementById('commodity-gc').value) || 0;
+            const user = auth.currentUser.email;
 
-            const totalStock = corn + urea + sbm + gc;
+            const newStock = {
+                corn: parseInt(document.getElementById('commodity-corn').value) || 0,
+                urea: parseInt(document.getElementById('commodity-urea').value) || 0,
+                sbm: parseInt(document.getElementById('commodity-sbm').value) || 0,
+                gc: parseInt(document.getElementById('commodity-gc').value) || 0
+            };
+
+            const totalStock = newStock.corn + newStock.urea + newStock.sbm + newStock.gc;
             if (totalStock > WAREHOUSE_CAPACITY) {
                 showToast('Total stock cannot exceed warehouse capacity!', 'error');
                 return;
             }
 
+            const warehouseRef = doc(db, 'warehouse', 'main');
             try {
-                await setDoc(doc(db, 'warehouse', 'main'), { corn, urea, sbm, gc });
+                const docSnap = await getDoc(warehouseRef);
+                const oldStock = docSnap.exists() ? docSnap.data() : { corn: 0, urea: 0, sbm: 0, gc: 0 };
+                
+                await setDoc(warehouseRef, newStock);
+
+                // Log changes
+                for (const commodity in newStock) {
+                    const change = newStock[commodity] - (oldStock[commodity] || 0);
+                    if (change !== 0) {
+                        await logTransaction('Warehouse', commodity.toUpperCase(), change, user);
+                    }
+                }
+                
                 showToast('Warehouse stock updated successfully!', 'success');
             } catch (error) {
                 showToast(`Error: ${error.message}`, 'error');
@@ -605,6 +690,7 @@
                 });
                 await batch.commit();
                 showToast('Silos initialized successfully!', 'success');
+                await logTransaction('System', 'All Silos', 'Initialized to 0', auth.currentUser.email);
             } catch (error) {
                 showToast(`Error initializing silos: ${error.message}`, 'error');
             }
@@ -617,7 +703,6 @@
                 querySnapshot.forEach((doc) => {
                     silos.push({ firestoreId: doc.id, ...doc.data() });
                 });
-                // Sort silos for consistent display
                 silos.sort((a,b) => a.id.localeCompare(b.id));
                 updateSilosUI(silos);
                 updateSilosChart(silos);
@@ -635,7 +720,7 @@
             }
 
             silos.forEach(silo => {
-                const fillPercentage = (silo.currentStock / silo.capacity) * 100;
+                const fillPercentage = silo.capacity > 0 ? (silo.currentStock / silo.capacity) * 100 : 0;
                 const row = `
                     <tr class="border-b hover:bg-gray-50">
                         <td class="p-4 font-medium text-gray-800">${silo.id}</td>
@@ -659,7 +744,6 @@
                 tableBody.innerHTML += row;
             });
             
-            // Re-add event listeners for new buttons
             document.querySelectorAll('.edit-btn').forEach(btn => {
                 btn.addEventListener('click', () => openEditModal(btn.dataset.id, btn.dataset.stock, btn.dataset.capacity));
             });
@@ -690,9 +774,18 @@
                 return;
             }
             
+            const siloRef = doc(db, 'silos', id);
             try {
-                const siloRef = doc(db, 'silos', id);
+                const docSnap = await getDoc(siloRef);
+                const oldStock = docSnap.exists() ? docSnap.data().currentStock : 0;
+                
                 await setDoc(siloRef, { currentStock: newStock }, { merge: true });
+                
+                const change = newStock - oldStock;
+                if (change !== 0) {
+                    await logTransaction('Silo', id, change, auth.currentUser.email);
+                }
+
                 showToast('Silo stock updated successfully!', 'success');
                 closeModal();
             } catch (error) {
@@ -707,6 +800,68 @@
              document.getElementById('total-silo-stock').textContent = `${totalStock.toLocaleString()} MT`;
         }
 
+        // --- TRANSACTIONS LOGIC ---
+        function listenToTransactionsData() {
+            const q = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'));
+            onSnapshot(q, (querySnapshot) => {
+                allTransactions = [];
+                querySnapshot.forEach((doc) => {
+                    allTransactions.push({ id: doc.id, ...doc.data() });
+                });
+                renderTransactions();
+            });
+        }
+
+        function renderTransactions(searchTerm = '') {
+            const tableBody = document.getElementById('transactions-table-body');
+            tableBody.innerHTML = '';
+            
+            const filteredTransactions = allTransactions.filter(t => {
+                const search = searchTerm.toLowerCase();
+                return (t.item && t.item.toLowerCase().includes(search)) ||
+                       (t.type && t.type.toLowerCase().includes(search)) ||
+                       (t.user && t.user.toLowerCase().includes(search));
+            });
+
+            if (filteredTransactions.length === 0) {
+                 tableBody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-500">No transactions found.</td></tr>`;
+                 return;
+            }
+
+            filteredTransactions.forEach(t => {
+                const date = t.timestamp ? t.timestamp.toDate().toLocaleString() : 'N/A';
+                const change = t.change;
+                const changeClass = typeof change === 'number' ? (change > 0 ? 'text-green-600' : 'text-red-600') : 'text-gray-600';
+                const changeText = typeof change === 'number' ? `${change > 0 ? '+' : ''}${change.toLocaleString()}` : change;
+
+                const row = `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-4 text-gray-600">${date}</td>
+                        <td class="p-4 text-gray-800 font-medium">${t.type}</td>
+                        <td class="p-4 text-gray-600">${t.item}</td>
+                        <td class="p-4 font-semibold ${changeClass}">${changeText}</td>
+                        <td class="p-4 text-gray-600 truncate" title="${t.user}">${t.user}</td>
+                        <td class="p-4 text-center">
+                            <button class="delete-transaction-btn text-red-500 hover:text-red-700" data-id="${t.id}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+
+            document.querySelectorAll('.delete-transaction-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    if (confirm('Are you sure you want to delete this transaction record? This action cannot be undone.')) {
+                        await deleteDoc(doc(db, 'transactions', id));
+                        showToast('Transaction deleted.', 'success');
+                    }
+                });
+            });
+        }
+
         // --- CHARTS ---
         function updateWarehouseChart(data) {
             const ctx = document.getElementById('warehouse-chart').getContext('2d');
@@ -714,11 +869,11 @@
                 labels: ['Corn', 'Urea', 'SBM', 'GC', 'Empty'],
                 datasets: [{
                     data: [
-                        data.corn, 
-                        data.urea, 
-                        data.sbm, 
-                        data.gc,
-                        Math.max(0, WAREHOUSE_CAPACITY - (data.corn + data.urea + data.sbm + data.gc))
+                        data.corn || 0, 
+                        data.urea || 0, 
+                        data.sbm || 0, 
+                        data.gc || 0,
+                        Math.max(0, WAREHOUSE_CAPACITY - ((data.corn || 0) + (data.urea || 0) + (data.sbm || 0) + (data.gc || 0)))
                     ],
                     backgroundColor: ['#f59e0b', '#10b981', '#8b5cf6', '#3b82f6', '#e5e7eb'],
                 }]
@@ -826,8 +981,52 @@
             doc.save("Silo_Inventory.pdf");
             showToast('Exported to PDF.', 'success');
         }
+        
+        async function exportTransactionsToExcel() {
+            const dataToExport = allTransactions.map(t => ({
+                'Date': t.timestamp ? t.timestamp.toDate().toLocaleString() : 'N/A',
+                'Type': t.type,
+                'Item/Location': t.item,
+                'Change (MT)': t.change,
+                'User': t.user,
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
+            XLSX.writeFile(workbook, "Transaction_History.xlsx");
+            showToast('Exported Transactions to Excel.', 'success');
+        }
+
+        async function exportTransactionsToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'landscape' });
+            
+            const tableData = allTransactions.map(t => [
+                t.timestamp ? t.timestamp.toDate().toLocaleString() : 'N/A',
+                t.type,
+                t.item,
+                t.change,
+                t.user
+            ]);
+            
+            doc.autoTable({
+                head: [['Date', 'Type', 'Item/Location', 'Change (MT)', 'User']],
+                body: tableData,
+                startY: 20,
+                didDrawPage: function(data) {
+                    doc.setFontSize(18);
+                    doc.setTextColor(40);
+                    doc.text("Transaction History Report", data.settings.margin.left, 15);
+                }
+            });
+            
+            doc.save("Transaction_History.pdf");
+            showToast('Exported Transactions to PDF.', 'success');
+        }
 
     </script>
 
 </body>
 </html>
+
