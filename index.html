@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Silos & Warehouse Control</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- jsPDF and autoTable for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        /* Custom Styles */
+        :root {
+            --primary-color: #1e3a8a; /* Deep Blue */
+            --secondary-color: #f3f4f6; /* Light Gray */
+            --accent-color: #3b82f6; /* Bright Blue */
+            --text-primary: #111827; /* Dark Gray */
+            --text-secondary: #6b7280; /* Medium Gray */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--secondary-color);
+            color: var(--text-primary);
+        }
+        .sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+        .sidebar-hidden {
+            transform: translateX(-100%);
+        }
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #1c3172;
+        }
+        .btn-accent {
+            background-color: var(--accent-color);
+            color: white;
+            transition: background-color 0.3s;
+        }
+        .btn-accent:hover {
+            background-color: #2563eb;
+        }
+
+        /* Toast Notification */
+        #toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px);
+            transition: all 0.3s ease-in-out;
+            z-index: 100;
+        }
+        #toast.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        #toast.success { background-color: #22c55e; }
+        #toast.error { background-color: #ef4444; }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease-in-out;
+        }
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            width: 90%;
+            max-width: 500px;
+            transform: scale(0.95);
+            transition: all 0.3s ease-in-out;
+        }
+        .modal-overlay.show .modal-content {
+            transform: scale(1);
+        }
+        .progress-bar-container {
+            background-color: #e5e7eb;
+            border-radius: 9999px;
+            height: 1rem;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background-color: var(--accent-color);
+            height: 100%;
+            transition: width 0.5s ease-in-out;
+            text-align: center;
+            color: white;
+            font-size: 0.75rem;
+            line-height: 1rem;
+        }
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-left: 5px solid var(--primary-color);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Auth Section -->
+    <div id="auth-container" class="min-h-screen flex items-center justify-center bg-gray-100">
+        <div class="w-full max-w-md">
+            <!-- Login Form -->
+            <div id="login-view" class="bg-white p-8 rounded-xl shadow-lg">
+                <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">Login</h2>
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label for="login-email" class="block text-gray-700 font-medium mb-2">Email</label>
+                        <input type="email" id="login-email" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <div class="mb-6">
+                        <label for="login-password" class="block text-gray-700 font-medium mb-2">Password</label>
+                        <input type="password" id="login-password" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <button type="submit" class="w-full btn-primary font-bold py-3 rounded-lg">Login</button>
+                </form>
+                <p class="text-center mt-6 text-gray-600">
+                    Don't have an account? <a href="#" id="show-register" class="text-blue-600 hover:underline font-medium">Register here</a>
+                </p>
+            </div>
+            <!-- Register Form -->
+            <div id="register-view" class="hidden bg-white p-8 rounded-xl shadow-lg">
+                <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">Register</h2>
+                <form id="register-form">
+                    <div class="mb-4">
+                        <label for="register-email" class="block text-gray-700 font-medium mb-2">Email</label>
+                        <input type="email" id="register-email" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <div class="mb-6">
+                        <label for="register-password" class="block text-gray-700 font-medium mb-2">Password</label>
+                        <input type="password" id="register-password" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <button type="submit" class="w-full btn-primary font-bold py-3 rounded-lg">Register</button>
+                </form>
+                <p class="text-center mt-6 text-gray-600">
+                    Already have an account? <a href="#" id="show-login" class="text-blue-600 hover:underline font-medium">Login here</a>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main App Container -->
+    <div id="app-container" class="hidden">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar fixed top-0 left-0 h-full w-64 bg-white shadow-lg p-4 z-40 lg:translate-x-0 sidebar-hidden">
+            <div class="flex items-center pb-4 border-b">
+                <i class="fas fa-warehouse text-3xl text-blue-800"></i>
+                <h1 class="text-xl font-bold ml-3 text-gray-800">Storage Control</h1>
+            </div>
+            <nav class="mt-6">
+                <a href="#dashboard" class="nav-link flex items-center p-3 my-1 rounded-lg text-gray-700 hover:bg-blue-50 font-medium bg-blue-100 text-blue-800">
+                    <i class="fas fa-tachometer-alt w-6 text-center"></i>
+                    <span class="ml-4">Dashboard</span>
+                </a>
+                <a href="#warehouse" class="nav-link flex items-center p-3 my-1 rounded-lg text-gray-700 hover:bg-blue-50 font-medium">
+                    <i class="fas fa-industry w-6 text-center"></i>
+                    <span class="ml-4">Warehouse</span>
+                </a>
+                <a href="#silos" class="nav-link flex items-center p-3 my-1 rounded-lg text-gray-700 hover:bg-blue-50 font-medium">
+                    <i class="fas fa-cubes w-6 text-center"></i>
+                    <span class="ml-4">Silos</span>
+                </a>
+            </nav>
+            <div class="absolute bottom-4 left-4 right-4">
+                <div id="user-info" class="text-sm text-gray-600 mb-2 truncate"></div>
+                <button id="logout-btn" class="w-full flex items-center justify-center p-2 rounded-lg text-red-600 hover:bg-red-50 font-medium">
+                    <i class="fas fa-sign-out-alt w-6 text-center"></i>
+                    <span class="ml-3">Logout</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main id="main-content" class="lg:ml-64 transition-all duration-300">
+            <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+                <button id="sidebar-toggle" class="lg:hidden text-2xl text-gray-700">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h2 id="page-title" class="text-2xl font-semibold text-gray-800">Dashboard</h2>
+                <div><!-- Placeholder for header actions --></div>
+            </header>
+            
+            <div class="p-4 md:p-6 lg:p-8">
+                <!-- Dashboard View -->
+                <section id="dashboard-view" class="page-view">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="stat-card">
+                            <h3 class="text-lg font-semibold text-gray-500">Total Silo Capacity</h3>
+                            <p id="total-silo-capacity" class="text-4xl font-bold text-gray-800 mt-2">0 MT</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 class="text-lg font-semibold text-gray-500">Total Silo Stock</h3>
+                            <p id="total-silo-stock" class="text-4xl font-bold text-gray-800 mt-2">0 MT</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 class="text-lg font-semibold text-gray-500">Warehouse Capacity</h3>
+                            <p class="text-4xl font-bold text-gray-800 mt-2">20,000 MT</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 class="text-lg font-semibold text-gray-500">Warehouse Stock</h3>
+                            <p id="total-warehouse-stock" class="text-4xl font-bold text-gray-800 mt-2">0 MT</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="text-xl font-semibold mb-4 text-center">Silo Fill Levels</h3>
+                            <canvas id="silos-chart"></canvas>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="text-xl font-semibold mb-4 text-center">Warehouse Commodity Distribution</h3>
+                            <canvas id="warehouse-chart"></canvas>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Warehouse View -->
+                <section id="warehouse-view" class="page-view hidden">
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-2">Warehouse Inventory</h3>
+                        <p class="text-gray-600 mb-6">Total Capacity: 20,000 MT</p>
+                        
+                        <div class="mb-6">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-medium text-gray-700">Overall Fill Level</span>
+                                <span id="warehouse-fill-percentage" class="font-bold text-blue-800">0%</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div id="warehouse-progress-bar" class="progress-bar" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <form id="warehouse-form" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                            <div>
+                                <label for="commodity-corn" class="block font-medium text-gray-700">Corn (MT)</label>
+                                <input type="number" id="commodity-corn" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" min="0" value="0">
+                            </div>
+                             <div>
+                                <label for="commodity-urea" class="block font-medium text-gray-700">Urea (MT)</label>
+                                <input type="number" id="commodity-urea" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" min="0" value="0">
+                            </div>
+                             <div>
+                                <label for="commodity-sbm" class="block font-medium text-gray-700">SBM (MT)</label>
+                                <input type="number" id="commodity-sbm" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" min="0" value="0">
+                            </div>
+                             <div>
+                                <label for="commodity-gc" class="block font-medium text-gray-700">GC (MT)</label>
+                                <input type="number" id="commodity-gc" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" min="0" value="0">
+                            </div>
+                            <div class="md:col-span-2 flex justify-end">
+                                <button type="submit" class="btn-primary font-bold py-2 px-6 rounded-lg">
+                                    <i class="fas fa-save mr-2"></i>Update Stock
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+                
+                <!-- Silos View -->
+                <section id="silos-view" class="page-view hidden">
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                            <div>
+                                <h3 class="text-2xl font-bold text-gray-800">Silo Inventory</h3>
+                                <p class="text-gray-600">Manage stock levels for all 13 wheat silos.</p>
+                            </div>
+                            <div class="flex space-x-2 mt-4 md:mt-0">
+                                <button id="export-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors">
+                                    <i class="fas fa-file-excel mr-2"></i>Export Excel
+                                </button>
+                                <button id="export-pdf-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors">
+                                    <i class="fas fa-file-pdf mr-2"></i>Export PDF
+                                </button>
+                                <button id="init-silos-btn" class="btn-accent font-bold py-2 px-4 rounded-lg flex items-center">
+                                    <i class="fas fa-sync-alt mr-2"></i>Initialize Silos
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table id="silos-table" class="w-full text-left">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-4 font-semibold text-sm text-gray-600 rounded-l-lg">ID</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">Status</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">Capacity (MT)</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">Current Stock (MT)</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600">Fill Level</th>
+                                        <th class="p-4 font-semibold text-sm text-gray-600 rounded-r-lg text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="silos-table-body">
+                                    <!-- Silo rows will be inserted here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Silo Edit Modal -->
+    <div id="silo-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-title" class="text-2xl font-bold mb-6 text-gray-800">Edit Silo</h2>
+            <form id="silo-form">
+                <input type="hidden" id="silo-id">
+                <div class="mb-4">
+                    <label for="silo-current-stock" class="block text-gray-700 font-medium mb-2">Current Stock (MT)</label>
+                    <input type="number" id="silo-current-stock" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required min="0">
+                </div>
+                <div class="flex justify-end space-x-4">
+                    <button type="button" id="modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg">Cancel</button>
+                    <button type="submit" class="btn-primary font-bold py-2 px-6 rounded-lg">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast"></div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // --- FIREBASE CONFIGURATION ---
+        // IMPORTANT: Replace the following with your actual Firebase project configuration.
+        const firebaseConfig = {
+  apiKey: "AIzaSyAAzoasvlnmTi-t8jboN6bHn9ZdxdwAGSg",
+  authDomain: "studio-8936885003-9a19d.firebaseapp.com",
+  projectId: "studio-8936885003-9a19d",
+  storageBucket: "studio-8936885003-9a19d.firebasestorage.app",
+  messagingSenderId: "641267881158",
+  appId: "1:641267881158:web:0ba6e81b858d0ba94a73c7"
+};
+        
+        // --- MODULE IMPORTS ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { 
+            getAuth, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword, 
+            signOut, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            getDoc,
+            onSnapshot, 
+            collection, 
+            query, 
+            writeBatch,
+            getDocs
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        
+        // --- APP INITIALIZATION ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- GLOBAL STATE & CONSTANTS ---
+        let silosChartInstance = null;
+        let warehouseChartInstance = null;
+        const WAREHOUSE_CAPACITY = 20000;
+        const siloDefinitions = [
+            // 6 silos of 3,200 MT
+            ...Array(4).fill(null).map((_, i) => ({ id: `Silo-3200-${i+1}`, capacity: 3200, status: 'Non-bonded' })),
+            ...Array(2).fill(null).map((_, i) => ({ id: `Silo-3200-${i+5}`, capacity: 3200, status: 'Bonded' })),
+            // 7 silos of 3,300 MT
+            ...Array(7).fill(null).map((_, i) => ({ id: `Silo-3300-${i+1}`, capacity: 3300, status: 'Bonded' })),
+        ];
+
+        // --- UI ELEMENTS ---
+        const authContainer = document.getElementById('auth-container');
+        const appContainer = document.getElementById('app-container');
+        const loginView = document.getElementById('login-view');
+        const registerView = document.getElementById('register-view');
+
+        // --- AUTHENTICATION LOGIC ---
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                authContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                document.getElementById('user-info').textContent = `Logged in as: ${user.email}`;
+                initApp();
+            } else {
+                authContainer.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+            }
+        });
+        
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                showToast('Login successful!', 'success');
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        });
+
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                showToast('Registration successful!', 'success');
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            signOut(auth);
+            showToast('Logged out.', 'success');
+        });
+
+        document.getElementById('show-register').addEventListener('click', () => {
+            loginView.classList.add('hidden');
+            registerView.classList.remove('hidden');
+        });
+
+        document.getElementById('show-login').addEventListener('click', () => {
+            registerView.classList.add('hidden');
+            loginView.classList.remove('hidden');
+        });
+
+        // --- TOAST NOTIFICATION ---
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'show';
+            toast.classList.add(type);
+            setTimeout(() => {
+                toast.className = toast.className.replace('show', '');
+            }, 3000);
+        }
+
+        // --- APP INITIALIZATION ---
+        function initApp() {
+            setupEventListeners();
+            setupNavigation();
+            listenToWarehouseData();
+            listenToSilosData();
+        }
+        
+        // --- EVENT LISTENERS ---
+        function setupEventListeners() {
+            document.getElementById('sidebar-toggle').addEventListener('click', () => {
+                document.getElementById('sidebar').classList.toggle('sidebar-hidden');
+            });
+            
+            document.getElementById('warehouse-form').addEventListener('submit', handleWarehouseUpdate);
+            document.getElementById('init-silos-btn').addEventListener('click', initializeSilos);
+            document.getElementById('silo-form').addEventListener('submit', handleSiloUpdate);
+            document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+            document.getElementById('export-excel-btn').addEventListener('click', exportToExcel);
+            document.getElementById('export-pdf-btn').addEventListener('click', exportToPDF);
+        }
+
+        // --- NAVIGATION ---
+        function setupNavigation() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            const pageViews = document.querySelectorAll('.page-view');
+            const pageTitle = document.getElementById('page-title');
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const targetId = link.getAttribute('href').substring(1);
+                    
+                    navLinks.forEach(l => {
+                        l.classList.remove('bg-blue-100', 'text-blue-800');
+                    });
+                    link.classList.add('bg-blue-100', 'text-blue-800');
+
+                    pageViews.forEach(view => {
+                        view.classList.add('hidden');
+                    });
+                    
+                    document.getElementById(`${targetId}-view`).classList.remove('hidden');
+                    pageTitle.textContent = link.querySelector('span').textContent;
+
+                    // Close sidebar on navigation on mobile
+                    if (window.innerWidth < 1024) {
+                        document.getElementById('sidebar').classList.add('sidebar-hidden');
+                    }
+                });
+            });
+        }
+        
+        // --- WAREHOUSE LOGIC ---
+        function listenToWarehouseData() {
+            const warehouseRef = doc(db, 'warehouse', 'main');
+            onSnapshot(warehouseRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    updateWarehouseUI(data);
+                    updateWarehouseChart(data);
+                } else {
+                    // Initialize warehouse if it doesn't exist
+                    setDoc(doc(db, 'warehouse', 'main'), { corn: 0, urea: 0, sbm: 0, gc: 0 });
+                }
+            });
+        }
+
+        function updateWarehouseUI(data) {
+            document.getElementById('commodity-corn').value = data.corn;
+            document.getElementById('commodity-urea').value = data.urea;
+            document.getElementById('commodity-sbm').value = data.sbm;
+            document.getElementById('commodity-gc').value = data.gc;
+            
+            const totalStock = data.corn + data.urea + data.sbm + data.gc;
+            const fillPercentage = (totalStock / WAREHOUSE_CAPACITY) * 100;
+            
+            document.getElementById('total-warehouse-stock').textContent = `${totalStock.toLocaleString()} MT`;
+            document.getElementById('warehouse-fill-percentage').textContent = `${fillPercentage.toFixed(1)}%`;
+            document.getElementById('warehouse-progress-bar').style.width = `${fillPercentage}%`;
+            document.getElementById('warehouse-progress-bar').textContent = `${fillPercentage.toFixed(1)}%`;
+        }
+
+        async function handleWarehouseUpdate(e) {
+            e.preventDefault();
+            const corn = parseInt(document.getElementById('commodity-corn').value) || 0;
+            const urea = parseInt(document.getElementById('commodity-urea').value) || 0;
+            const sbm = parseInt(document.getElementById('commodity-sbm').value) || 0;
+            const gc = parseInt(document.getElementById('commodity-gc').value) || 0;
+
+            const totalStock = corn + urea + sbm + gc;
+            if (totalStock > WAREHOUSE_CAPACITY) {
+                showToast('Total stock cannot exceed warehouse capacity!', 'error');
+                return;
+            }
+
+            try {
+                await setDoc(doc(db, 'warehouse', 'main'), { corn, urea, sbm, gc });
+                showToast('Warehouse stock updated successfully!', 'success');
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // --- SILOS LOGIC ---
+        async function initializeSilos() {
+            if (!confirm('Are you sure you want to initialize/reset all 13 silos? This will set their stock to 0.')) {
+                return;
+            }
+
+            try {
+                const batch = writeBatch(db);
+                siloDefinitions.forEach(silo => {
+                    const siloRef = doc(db, 'silos', silo.id);
+                    batch.set(siloRef, {
+                        ...silo,
+                        currentStock: 0,
+                        commodity: 'Wheat'
+                    });
+                });
+                await batch.commit();
+                showToast('Silos initialized successfully!', 'success');
+            } catch (error) {
+                showToast(`Error initializing silos: ${error.message}`, 'error');
+            }
+        }
+
+        function listenToSilosData() {
+            const q = query(collection(db, 'silos'));
+            onSnapshot(q, (querySnapshot) => {
+                const silos = [];
+                querySnapshot.forEach((doc) => {
+                    silos.push({ firestoreId: doc.id, ...doc.data() });
+                });
+                // Sort silos for consistent display
+                silos.sort((a,b) => a.id.localeCompare(b.id));
+                updateSilosUI(silos);
+                updateSilosChart(silos);
+                updateDashboardStats(silos);
+            });
+        }
+        
+        function updateSilosUI(silos) {
+            const tableBody = document.getElementById('silos-table-body');
+            tableBody.innerHTML = '';
+            
+            if (silos.length === 0) {
+                 tableBody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-500">No silos found. Click 'Initialize Silos' to get started.</td></tr>`;
+                 return;
+            }
+
+            silos.forEach(silo => {
+                const fillPercentage = (silo.currentStock / silo.capacity) * 100;
+                const row = `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-4 font-medium text-gray-800">${silo.id}</td>
+                        <td class="p-4 text-gray-600">
+                             <span class="px-2 py-1 text-xs font-semibold rounded-full ${silo.status === 'Bonded' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}">
+                                ${silo.status}
+                            </span>
+                        </td>
+                        <td class="p-4 text-gray-600">${silo.capacity.toLocaleString()}</td>
+                        <td class="p-4 text-gray-800 font-semibold">${silo.currentStock.toLocaleString()}</td>
+                        <td class="p-4">
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" style="width: ${fillPercentage}%;">${fillPercentage.toFixed(1)}%</div>
+                            </div>
+                        </td>
+                        <td class="p-4 text-center">
+                            <button class="edit-btn text-blue-600 hover:text-blue-800" data-id="${silo.firestoreId}" data-stock="${silo.currentStock}" data-capacity="${silo.capacity}"><i class="fas fa-edit"></i></button>
+                        </td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+            
+            // Re-add event listeners for new buttons
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', () => openEditModal(btn.dataset.id, btn.dataset.stock, btn.dataset.capacity));
+            });
+        }
+        
+        function openEditModal(id, currentStock, capacity) {
+            document.getElementById('silo-id').value = id;
+            const stockInput = document.getElementById('silo-current-stock');
+            stockInput.value = currentStock;
+            stockInput.max = capacity;
+            document.getElementById('modal-title').textContent = `Edit Stock for ${id}`;
+            document.getElementById('silo-modal').classList.add('show');
+        }
+        
+        function closeModal() {
+            document.getElementById('silo-modal').classList.remove('show');
+        }
+
+        async function handleSiloUpdate(e) {
+            e.preventDefault();
+            const id = document.getElementById('silo-id').value;
+            const stockInput = document.getElementById('silo-current-stock');
+            const newStock = parseInt(stockInput.value);
+            const capacity = parseInt(stockInput.max);
+            
+            if (newStock < 0 || newStock > capacity) {
+                showToast(`Stock must be between 0 and ${capacity}.`, 'error');
+                return;
+            }
+            
+            try {
+                const siloRef = doc(db, 'silos', id);
+                await setDoc(siloRef, { currentStock: newStock }, { merge: true });
+                showToast('Silo stock updated successfully!', 'success');
+                closeModal();
+            } catch (error) {
+                showToast(`Error updating silo: ${error.message}`, 'error');
+            }
+        }
+        
+        function updateDashboardStats(silos) {
+             const totalCapacity = silos.reduce((acc, silo) => acc + silo.capacity, 0);
+             const totalStock = silos.reduce((acc, silo) => acc + silo.currentStock, 0);
+             document.getElementById('total-silo-capacity').textContent = `${totalCapacity.toLocaleString()} MT`;
+             document.getElementById('total-silo-stock').textContent = `${totalStock.toLocaleString()} MT`;
+        }
+
+        // --- CHARTS ---
+        function updateWarehouseChart(data) {
+            const ctx = document.getElementById('warehouse-chart').getContext('2d');
+            const chartData = {
+                labels: ['Corn', 'Urea', 'SBM', 'GC', 'Empty'],
+                datasets: [{
+                    data: [
+                        data.corn, 
+                        data.urea, 
+                        data.sbm, 
+                        data.gc,
+                        Math.max(0, WAREHOUSE_CAPACITY - (data.corn + data.urea + data.sbm + data.gc))
+                    ],
+                    backgroundColor: ['#f59e0b', '#10b981', '#8b5cf6', '#3b82f6', '#e5e7eb'],
+                }]
+            };
+
+            if (warehouseChartInstance) {
+                warehouseChartInstance.data = chartData;
+                warehouseChartInstance.update();
+            } else {
+                warehouseChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: chartData,
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+        }
+
+        function updateSilosChart(silos) {
+            const ctx = document.getElementById('silos-chart').getContext('2d');
+            const chartData = {
+                labels: silos.map(s => s.id),
+                datasets: [{
+                    label: 'Current Stock (MT)',
+                    data: silos.map(s => s.currentStock),
+                    backgroundColor: '#3b82f6',
+                }, {
+                    label: 'Empty Space (MT)',
+                    data: silos.map(s => s.capacity - s.currentStock),
+                    backgroundColor: '#e5e7eb',
+                }]
+            };
+
+            if (silosChartInstance) {
+                silosChartInstance.data = chartData;
+                silosChartInstance.update();
+            } else {
+                silosChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { stacked: true },
+                            y: { stacked: true, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- DATA EXPORT ---
+        async function fetchAllSilosData() {
+            const q = query(collection(db, "silos"));
+            const querySnapshot = await getDocs(q);
+            const silos = [];
+            querySnapshot.forEach((doc) => {
+                silos.push({ id: doc.id, ...doc.data() });
+            });
+            return silos.sort((a,b) => a.id.localeCompare(b.id));
+        }
+
+        async function exportToExcel() {
+            const silos = await fetchAllSilosData();
+            const dataToExport = silos.map(s => ({
+                'Silo ID': s.id,
+                'Status': s.status,
+                'Capacity (MT)': s.capacity,
+                'Current Stock (MT)': s.currentStock,
+                'Fill Level (%)': ((s.currentStock / s.capacity) * 100).toFixed(2),
+                'Commodity': s.commodity,
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Silos");
+            XLSX.writeFile(workbook, "Silo_Inventory.xlsx");
+            showToast('Exported to Excel.', 'success');
+        }
+
+        async function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const silos = await fetchAllSilosData();
+            const tableData = silos.map(s => [
+                s.id,
+                s.status,
+                s.capacity,
+                s.currentStock,
+                `${((s.currentStock / s.capacity) * 100).toFixed(2)}%`,
+            ]);
+            
+            doc.autoTable({
+                head: [['Silo ID', 'Status', 'Capacity (MT)', 'Current Stock (MT)', 'Fill Level']],
+                body: tableData,
+                startY: 20,
+                didDrawPage: function(data) {
+                    doc.setFontSize(18);
+                    doc.setTextColor(40);
+                    doc.text("Silo Inventory Report", data.settings.margin.left, 15);
+                }
+            });
+            
+            doc.save("Silo_Inventory.pdf");
+            showToast('Exported to PDF.', 'success');
+        }
+
+    </script>
+
+</body>
+</html>
